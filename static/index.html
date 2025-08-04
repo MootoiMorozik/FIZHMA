@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Deltarune Countdown</title>
+  <link rel="icon" type="image/png" href="static/favicon.png" />
+  <style>
+    @font-face {
+      font-family: 'UNDERTALE';
+      src: url('static/und.ttf') format('truetype');
+    }
+
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: black;
+      font-family: 'UNDERTALE', sans-serif;
+      color: white;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #background {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 0;
+      width: 400px;
+      height: 400px;
+      pointer-events: none;
+      opacity: 0.3;
+    }
+
+    #language-selector {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: #222;
+      border: 1px solid white;
+      color: white;
+      font-family: 'UNDERTALE', monospace;
+      font-size: 16px;
+      padding: 5px 8px;
+      cursor: pointer;
+      z-index: 10;
+      border-radius: 4px;
+      appearance: none;
+    }
+
+    #container {
+      position: relative;
+      z-index: 5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+      text-align: center;
+      display: none;
+    }
+
+    #countdown, #online {
+      color: transparent;
+      background-image: url('static/depth.png');
+      background-repeat: repeat;
+      background-size: 150px 150px;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: sway 4s ease-in-out infinite;
+      user-select: none;
+      white-space: nowrap;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    #countdown {
+      font-size: 3em;
+      margin-bottom: 20px;
+    }
+
+    #online {
+      font-size: 1.5em;
+    }
+
+    @keyframes sway {
+      0%, 100% {
+        background-position: 0 0;
+      }
+      50% {
+        background-position: 15px 15px;
+      }
+    }
+
+    #overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+      flex-direction: column;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #enter-text {
+      color: white;
+      font-size: 18px;
+      font-family: 'UNDERTALE', monospace;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    #enter-button {
+      background: linear-gradient(135deg, #6b0f1a, #b91372);
+      border: none;
+      color: white;
+      font-family: 'UNDERTALE', monospace;
+      font-size: 24px;
+      padding: 20px 40px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 0 15px #b91372;
+      transition: box-shadow 0.3s ease, transform 0.2s ease;
+      user-select: none;
+    }
+
+    #enter-button:hover {
+      box-shadow: 0 0 30px #ff4a9f;
+      transform: scale(1.05);
+    }
+
+    #enter-button:active {
+      transform: scale(0.95);
+    }
+
+    #no-music-text {
+      color: #aaa;
+      font-size: 16px;
+      font-family: 'UNDERTALE', monospace;
+      margin-top: 15px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <select id="language-selector" aria-label="Select language">
+    <option value="en">English</option>
+    <option value="ru">Русский</option>
+  </select>
+
+  <div id="overlay">
+    <div id="enter-text">Чтобы мы могли включить музыку, вам нужно нажать эту кнопку. :3</div>
+    <button id="enter-button">Enter</button>
+    <div id="no-music-text">Я не хочу музыки</div>
+  </div>
+
+  <img src="static/background.gif" id="background" alt="background" />
+
+  <div id="container">
+    <div id="countdown"></div>
+    <div id="online"></div>
+  </div>
+
+  <audio id="bg-music" loop></audio>
+
+  <script>
+    const countdownEl = document.getElementById('countdown');
+    const onlineEl = document.getElementById('online');
+    const langSel = document.getElementById('language-selector');
+    const audio = document.getElementById('bg-music');
+    const overlay = document.getElementById('overlay');
+    const enterButton = document.getElementById('enter-button');
+    const noMusicText = document.getElementById('no-music-text');
+    const container = document.getElementById('container');
+
+    const translations = {
+      en: {
+        countdown: 'Countdown to 2026:',
+        online: "Deltaruners on site: "
+      },
+      ru: {
+        countdown: 'Отсчёт до 2026:',
+        online: 'Дельтарунеров на сайте: '
+      }
+    };
+
+    function detectBrowserLanguage() {
+      const lang = navigator.language || navigator.userLanguage || 'en';
+      if (lang.startsWith('ru')) return 'ru';
+      return 'en';
+    }
+
+    function setLanguage(lang) {
+      if (!translations[lang]) lang = 'en';
+      langSel.value = lang;
+      updateCountdown();
+      updateOnlineUsers();
+    }
+
+    function updateCountdown() {
+      const now = new Date();
+      const target = new Date('2026-01-01T00:00:00');
+      const diff = target - now;
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      const lang = langSel.value;
+
+      countdownEl.innerHTML = `${translations[lang].countdown}<br>` +
+        `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    async function updateOnlineUsers() {
+      try {
+        const res = await fetch('/online');
+        if (!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        const lang = langSel.value;
+        onlineEl.textContent = translations[lang].online + data.count;
+      } catch {
+        onlineEl.textContent = 'Error loading online users';
+      }
+    }
+
+    function updateMusicByTime() {
+      const hour = new Date().getHours();
+      let track = '';
+
+      if (hour >= 0 && hour < 6) {
+        track = 'static/neverendingnight.mp3';
+      } else if (hour >= 6 && hour < 13) {
+        track = 'static/darksanctuary.mp3';
+      } else if (hour >= 13 && hour < 17) {
+        track = 'static/fromnowon.mp3';
+      } else if (hour >= 17 && hour <= 23) {
+        track = 'static/thethirdsanctuary.mp3';
+      }
+
+      audio.src = track;
+    }
+
+    function startSite() {
+      overlay.style.display = 'none';
+      container.style.display = 'flex';
+      updateCountdown();
+      updateOnlineUsers();
+
+      setInterval(updateCountdown, 1000);
+      setInterval(updateOnlineUsers, 5000);
+      setInterval(updateMusicByTime, 10 * 60 * 1000);
+    }
+
+    enterButton.addEventListener('click', () => {
+      updateMusicByTime();
+      audio.play().then(() => {
+        startSite();
+      }).catch(() => {
+        startSite();
+      });
+    });
+
+    noMusicText.addEventListener('click', () => {
+      startSite();
+    });
+
+    langSel.addEventListener('change', () => {
+      updateCountdown();
+      updateOnlineUsers();
+    });
+
+    setLanguage(detectBrowserLanguage());
+  </script>
+</body>
+</html>
